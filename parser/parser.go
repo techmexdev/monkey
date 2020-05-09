@@ -5,6 +5,7 @@ import (
 	"monkey/ast"
 	"monkey/lexer"
 	"monkey/token"
+	"strconv"
 )
 
 // Parser makes statements and expressions from a lexer's tokens
@@ -53,18 +54,59 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 		return p.parseLetStatement()
 	case token.RETURN:
 		return p.parseReturnStatement()
+	default:
+		return p.parseExpressionStatement()
 	}
-	return nil, nil
+}
+
+func (p *Parser) parseExpression() (ast.Expression, error) {
+	var expr ast.Expression
+	switch p.currTok.Type {
+	case token.IDENT:
+		expr = &ast.Identifier{Token: p.currTok, Value: p.currTok.Literal}
+	case token.INT:
+		num, err := strconv.ParseInt(p.currTok.Literal, 0, 64)
+		if err != nil {
+			return &ast.Identifier{}, fmt.Errorf("could not parse token: %v into int64: %s", p.currTok, err)
+		}
+
+		expr = &ast.Integer{Token: p.currTok, Value: num}
+	}
+	return expr, nil
+}
+
+func (p *Parser) parseExpressionStatement() (*ast.ExpressionStatement, error) {
+	stmt := ast.ExpressionStatement{Token: p.currTok}
+	expr, err := p.parseExpression()
+	if err != nil {
+		return &ast.ExpressionStatement{}, err
+	}
+	stmt.Expression = expr
+
+	// expressions can end with a semicolon. Ex 5+5;
+	if p.nextTok.Type == token.SEMICOLON {
+		p.readToken()
+	}
+
+	return &stmt, nil
 }
 
 func (p *Parser) parseReturnStatement() (*ast.ReturnStatement, error) {
 	stmt := ast.ReturnStatement{Token: p.currTok}
-
-	// TODO: Allow expressions, not just ints as stmt value
-	if p.nextTok.Type != token.INT {
-		return nil, fmt.Errorf("have next token type %s, want %s", p.nextTok.Type, token.INT)
+	if p.currTok.Type != token.RETURN {
+		return &ast.ReturnStatement{}, fmt.Errorf("have token type %s in beginning of return statement, want %s", p.currTok.Type, token.RETURN)
 	}
-	stmt.Value.Value = p.nextTok.Literal
+	p.readToken()
+
+	expr, err := p.parseExpression()
+	if err != nil {
+		return &ast.ReturnStatement{}, fmt.Errorf("failed parsing expression in return statement: %s", err)
+	}
+	stmt.Value = expr
+
+	if p.nextTok.Type != token.SEMICOLON {
+		return nil, fmt.Errorf("have token %v, want %s", p.nextTok.Type, token.SEMICOLON)
+	}
 	p.readToken()
 
 	return &stmt, nil
@@ -73,25 +115,28 @@ func (p *Parser) parseReturnStatement() (*ast.ReturnStatement, error) {
 func (p *Parser) parseLetStatement() (*ast.LetStatement, error) {
 	stmt := ast.LetStatement{Token: p.currTok}
 
-	if p.nextTok.Type != token.IDENT {
-		return nil, fmt.Errorf("have next token type %s, want %s", p.nextTok.Type, token.IDENT)
+	if p.currTok.Type != token.LET {
+		return &ast.LetStatement{}, fmt.Errorf("have token type %s in beginning of let statement, want %s", p.currTok.Type, token.LET)
 	}
 	p.readToken()
+
+	if p.currTok.Type != token.IDENT {
+		return nil, fmt.Errorf("have next token type %s, want %s", p.currTok.Type, token.IDENT)
+	}
 	stmt.Name = &ast.Identifier{Token: p.currTok, Value: p.currTok.Literal}
+	p.readToken()
 
-	if p.nextTok.Type != token.ASSIGN {
-		return nil, fmt.Errorf("have next token type %s, want %s", p.nextTok.Type, token.ASSIGN)
+	if p.currTok.Type != token.ASSIGN {
+		return nil, fmt.Errorf("have next token type %s, want %s", p.currTok.Type, token.ASSIGN)
 	}
 	p.readToken()
 
-	// TODO: Allow expressions, not just ints as stmt value
-	if p.nextTok.Type != token.INT {
-		return nil, fmt.Errorf("have next token type %s, want %s", p.nextTok.Type, token.INT)
+	expr, err := p.parseExpression()
+	if err != nil {
+		return &ast.LetStatement{}, fmt.Errorf("failed parsing expression in let statement: %s", err)
 	}
-	stmt.Value = ast.Expression{Value: p.currTok.Literal}
-	p.readToken()
+	stmt.Value = expr
 
-	// TODO: Handle expressions
 	if p.nextTok.Type != token.SEMICOLON {
 		return nil, fmt.Errorf("have token %v, want %s", p.nextTok.Type, token.SEMICOLON)
 	}
