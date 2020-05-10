@@ -59,9 +59,38 @@ func (p *Parser) parseStatement() (ast.Statement, error) {
 	}
 }
 
+func (p *Parser) parsePrefixExpression() (ast.Expression, error) {
+	preExp := ast.PrefixExpression{}
+	switch p.currTok.Type {
+	case token.BANG:
+		preExp.Operator = p.currTok.Literal
+	case token.MINUS:
+		preExp.Operator = p.currTok.Literal
+	}
+	p.readToken()
+
+	expr, err := p.parseExpression()
+	if err != nil {
+		return ast.PrefixExpression{}, err
+	}
+
+	preExp.Expression = expr
+
+	return preExp, nil
+}
+
 func (p *Parser) parseExpression() (ast.Expression, error) {
 	var expr ast.Expression
 	switch p.currTok.Type {
+	case token.BANG, token.MINUS:
+		preExp := ast.PrefixExpression{Token: p.currTok, Operator: p.currTok.Literal}
+		p.readToken()
+		exp, err := p.parseExpression()
+		if err != nil {
+			return nil, fmt.Errorf("failed parsing prefix expression's expression: %s", err)
+		}
+		preExp.Expression = exp
+		return &preExp, nil
 	case token.IDENT:
 		expr = &ast.Identifier{Token: p.currTok, Value: p.currTok.Literal}
 	case token.INT:

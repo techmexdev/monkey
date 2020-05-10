@@ -15,7 +15,7 @@ func TestLetStatement(t *testing.T) {
 		let two = 4930;
 		let three = 5;
 	`
-	wantSS := []ast.LetStatement{
+	want := []ast.LetStatement{
 		{
 			Name:  &ast.Identifier{Token: token.Token{Type: token.IDENT, Literal: "one"}, Value: "one"},
 			Value: ast.Integer{Token: token.Token{Type: token.INT, Literal: "1"}, Value: 1},
@@ -37,8 +37,8 @@ func TestLetStatement(t *testing.T) {
 	}
 
 	stmts := prog.Statements
-	if len(stmts) != len(wantSS) {
-		t.Fatalf("have %v statements, want %v", len(stmts), len(wantSS))
+	if len(stmts) != len(want) {
+		t.Fatalf("have %v statements, want %v", len(stmts), len(want))
 	}
 
 	for i, stmt := range stmts {
@@ -47,12 +47,12 @@ func TestLetStatement(t *testing.T) {
 			t.Fatalf("have statement type %T, want %T", stmt, ast.LetStatement{})
 		}
 
-		if stmt.Name.Value != wantSS[i].Name.Value {
-			t.Fatalf("have identifier name: %s, want %s", stmt.Name.Value, wantSS[i].Name.Value)
+		if stmt.Name.Value != want[i].Name.Value {
+			t.Fatalf("have identifier name: %s, want %s", stmt.Name.Value, want[i].Name.Value)
 		}
 
-		if stmt.Value.TokenLiteral() != wantSS[i].Value.TokenLiteral() {
-			t.Fatalf("have identifier value: %s, want %s", stmt.Value.TokenLiteral(), wantSS[i].Value.TokenLiteral())
+		if stmt.Value.TokenLiteral() != want[i].Value.TokenLiteral() {
+			t.Fatalf("have identifier value: %s, want %s", stmt.Value.TokenLiteral(), want[i].Value.TokenLiteral())
 		}
 	}
 }
@@ -63,7 +63,7 @@ func TestReturnStatement(t *testing.T) {
 		return 4930;
 		return 5;
 	`
-	wantSS := []ast.ReturnStatement{
+	want := []ast.ReturnStatement{
 		{
 			Token: token.Token{Type: token.RETURN},
 			Value: ast.Integer{Token: token.Token{Type: token.INT, Literal: "1"}, Value: 1},
@@ -85,8 +85,8 @@ func TestReturnStatement(t *testing.T) {
 	}
 
 	stmts := prog.Statements
-	if len(stmts) != len(wantSS) {
-		t.Fatalf("have %v statements, want %v", len(stmts), len(wantSS))
+	if len(stmts) != len(want) {
+		t.Fatalf("have %v statements, want %v", len(stmts), len(want))
 	}
 
 	for i, stmt := range stmts {
@@ -95,15 +95,15 @@ func TestReturnStatement(t *testing.T) {
 			t.Fatalf("have statement type %T, want %T", stmt, &ast.ReturnStatement{})
 		}
 
-		if stmt.Value.TokenLiteral() != wantSS[i].Value.TokenLiteral() {
-			t.Fatalf("have return value: %s, want %s", stmt.Value.TokenLiteral(), wantSS[i].Value.TokenLiteral())
+		if stmt.Value.TokenLiteral() != want[i].Value.TokenLiteral() {
+			t.Fatalf("have return value: %s, want %s", stmt.Value.TokenLiteral(), want[i].Value.TokenLiteral())
 		}
 	}
 }
 
 func TestExpression(t *testing.T) {
 	input := `5; foo`
-	wantSS := []ast.Expression{
+	want := []ast.Expression{
 		ast.Integer{Token: token.Token{Type: token.INT, Literal: "5"}, Value: 5},
 		ast.Identifier{Token: token.Token{Type: token.IDENT, Literal: "foo"}, Value: "foo"},
 	}
@@ -116,8 +116,8 @@ func TestExpression(t *testing.T) {
 
 	stmts := prog.Statements
 
-	if len(stmts) != len(wantSS) {
-		t.Fatalf("have %v statements, want %v", len(stmts), len(wantSS))
+	if len(stmts) != len(want) {
+		t.Fatalf("have %v statements, want %v", len(stmts), len(want))
 	}
 
 	for i, stmt := range stmts {
@@ -125,10 +125,63 @@ func TestExpression(t *testing.T) {
 		if !ok {
 			t.Fatalf("have statement type %T, want %T", stmt, ast.ExpressionStatement{})
 		}
-		log.Printf("stmt = %+v\n", stmt)
 
-		if stmt.Expression.TokenLiteral() != wantSS[i].TokenLiteral() {
-			t.Fatalf("have expression value: %s, want %s", stmt.String(), wantSS[i].String())
+		if stmt.Expression.TokenLiteral() != want[i].TokenLiteral() {
+			t.Fatalf("have expression value: %s, want %s", stmt.String(), want[i].String())
+		}
+	}
+}
+
+func TestPrefixExpression(t *testing.T) {
+	input := `!foo; -foo; -5;`
+	want := []ast.ExpressionStatement{
+		{Expression: ast.PrefixExpression{
+			Operator:   token.BANG,
+			Expression: ast.Identifier{Token: token.Token{Type: token.IDENT, Literal: "foo"}, Value: "foo"},
+		}},
+		{Expression: ast.PrefixExpression{
+			Operator:   token.MINUS,
+			Expression: ast.Identifier{Token: token.Token{Type: token.IDENT, Literal: "foo"}, Value: "foo"},
+		}},
+		{Expression: ast.PrefixExpression{
+			Operator:   token.MINUS,
+			Expression: ast.Integer{Token: token.Token{Type: token.INT, Literal: "5"}, Value: 5},
+		}},
+	}
+
+	par := parser.New(lexer.New(input))
+	prog, err := par.Parse()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	stmts := prog.Statements
+
+	log.Println("prog", prog.String())
+	if len(stmts) != len(want) {
+		t.Fatalf("have %v statements, want %v", len(stmts), len(want))
+	}
+
+	for i, stmt := range stmts {
+		stmt, ok := stmt.(*ast.ExpressionStatement)
+		if !ok {
+			t.Fatalf("have statement type %T, want %T", stmt, &ast.ExpressionStatement{})
+		}
+		log.Printf("stmt = %#+v\n", stmt)
+
+		preExp, ok := stmt.Expression.(*ast.PrefixExpression)
+		if !ok {
+			t.Fatalf("have statement expression type %T, want %T", stmt.Expression, &ast.PrefixExpression{})
+		}
+		w := want[i].Expression.(ast.PrefixExpression)
+
+		if preExp.Operator != w.Operator {
+			t.Fatalf("have operator  %s, want %s", preExp.Operator, w.Operator)
+		}
+
+		if preExp.Expression.TokenLiteral() != w.Expression.TokenLiteral() {
+			want := want[i].Expression.(ast.PrefixExpression)
+			t.Fatalf("have prefix expression expression  %s, want %s", preExp.Expression.TokenLiteral(), want.Expression.TokenLiteral())
 		}
 	}
 }
