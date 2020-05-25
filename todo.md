@@ -1,0 +1,9 @@
+- [X] Lexer
+- [ ] Parser
+	- [X] parse let statements (assignments)
+	- [X] parse return statements
+	- [ ] parse expressions
+		- [X] parse (only) identifiers (i.e. variable;)
+		- [X] parse integer literals
+		- [X] parse prefix operators (i.e. !foo, -5)
+		- [X] parse infix operators
